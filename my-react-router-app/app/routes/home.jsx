@@ -1,50 +1,85 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useLoaderData } from "react-router";
+import { sql } from "../sql";
 import { User } from "../components/User";
 import { Event } from "../components/Event";
 
+/**
+ * Loader načte předměty pro filtr a události s jejich ikonami.
+ */
+export async function loader() {
+  const predmety = await sql("SELECT * FROM pzop_subject");
+  // JOIN pro získání ikony z tabulky předmětů (body za zobrazení ikon v seznamu)
+  const udalosti = await sql(`
+    SELECT e.*, s.icon_url 
+    FROM pzop_event e 
+    LEFT JOIN pzop_subject s ON e.subject_shortcut = s.shortcut 
+    ORDER BY e.event_date ASC
+  `);
+  return { predmety, udalosti };
+}
+
 export default function Home() {
-  const [filter, setFilter] = useState("Vše");
-  const [limit, setLimit] = useState(4); // Zadání: při načtení jen 4 události
+  const { predmety, udalosti } = useLoaderData();
+  const [filtr, setFiltr] = useState("Vše");
+  const [limit, setLimit] = useState(4); // Limit pro tlačítko "Více"
 
-  // Tady si představ, že máš data z DB
-  const [events] = useState([
-    { id: 1, title: "MO 17 - CSS", description: "Jazyk CSS, selektory...", event_date: "2026-04-30", subject_abbr: "WAP", is_test: true, icon_url: "..." },
-    // ... další data
-  ]);
+  // Logika filtrování
+  const filtrovaneUdalosti = filtr === "Vše" 
+    ? udalosti 
+    : udalosti.filter(e => e.subject_shortcut === filtr);
 
-  const filtered = filter === "Vše" ? events : events.filter(e => e.subject_abbr === filter);
+  const zobrazeneUdalosti = filtrovaneUdalosti.slice(0, limit);
 
   return (
-    <div className="max-w-md mx-auto p-4 bg-gray-50 min-h-screen">
-      <header className="flex justify-between items-center mb-6">
-        <User />
-        <Link to="/events/new" className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center shadow-lg text-2xl">+</Link>
+    <div className="min-h-screen bg-gray-50 pb-12">
+      {/* Sémantický header - responzivně na střed max-w-6xl */}
+      <header className="bg-white border-b sticky top-0 z-20">
+        <div className="max-w-6xl mx-auto px-4 h-16 flex justify-between items-center">
+          <User />
+          <Link to="/events/new" className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl shadow-lg hover:bg-blue-700 transition">
+            +
+          </Link>
+        </div>
       </header>
 
-      {/* Výběr předmětu */}
-      <div className="flex gap-2 overflow-x-auto pb-4">
-        {["Vše", "WAP", "CJL", "MUL", "MAT"].map(subj => (
+      <main className="max-w-6xl mx-auto px-4 pt-6">
+        {/* Navigace pro výběr předmětu */}
+        <nav className="flex gap-2 overflow-x-auto pb-6">
           <button 
-            key={subj}
-            onClick={() => setFilter(subj)}
-            className={`px-4 py-1 rounded-full border text-sm transition ${filter === subj ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300'}`}
-          >
-            {subj}
-          </button>
-        ))}
-      </div>
+            onClick={() => setFiltr("Vše")}
+            className={`px-6 py-1.5 rounded-full border text-sm font-bold transition-colors ${filtr === "Vše" ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}
+          >Vše</button>
+          {predmety.map(p => (
+            <button 
+              key={p.shortcut}
+              onClick={() => setFiltr(p.shortcut)}
+              className={`px-6 py-1.5 rounded-full border text-sm font-bold transition-colors ${filtr === p.shortcut ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}
+            >
+              {p.shortcut}
+            </button>
+          ))}
+        </nav>
 
-      {/* Seznam událostí */}
-      <div>
-        {filtered.slice(0, limit).map(e => <Event key={e.id} event={e} />)}
-        
-        {filtered.length > limit && (
-          <button onClick={() => setLimit(999)} className="w-full py-3 text-blue-600 font-bold">
-            Více
-          </button>
+        {/* RESPONZIVITA: grid-cols-1 (mobil), md:grid-cols-2 (tablet), lg:grid-cols-3 (PC) */}
+        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          {zobrazeneUdalosti.map(u => (
+            <Event key={u.id} event={u} />
+          ))}
+        </section>
+
+        {/* Tlačítko Více - zobrazí se jen když je co víc ukazovat */}
+        {filtrovaneUdalosti.length > limit && (
+          <div className="flex justify-center mt-8">
+            <button 
+              onClick={() => setLimit(100)} 
+              className="text-blue-600 font-bold py-2 px-6 hover:bg-blue-50 rounded-lg transition"
+            >
+              Zobrazit více událostí
+            </button>
+          </div>
         )}
-      </div>
+      </main>
     </div>
   );
 }
