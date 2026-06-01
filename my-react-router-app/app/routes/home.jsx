@@ -1,85 +1,84 @@
-import { useState } from "react";
-import { Link, useLoaderData } from "react-router";
+import { useLoaderData, Link } from "react-router";
 import { sql } from "../sql";
 import { User } from "../components/User";
-import { Event } from "../components/Event";
 
-/**
- * Loader načte předměty pro filtr a události s jejich ikonami.
- */
 export async function loader() {
-  const predmety = await sql("SELECT * FROM pzop_subject");
-  // JOIN pro získání ikony z tabulky předmětů (body za zobrazení ikon v seznamu)
-  const udalosti = await sql(`
-    SELECT e.*, s.icon_url 
-    FROM pzop_event e 
-    LEFT JOIN pzop_subject s ON e.subject_shortcut = s.shortcut 
-    ORDER BY e.event_date ASC
-  `);
-  return { predmety, udalosti };
+  try {
+    // 1. Zjistíme, kdo je právě aktivní uživatel (opravený JS komentář)
+    const resAktivni = await sql("SELECT * FROM pzop_user WHERE is_active = 1 LIMIT 1");
+    const aktivniUzivatel = resAktivni[0];
+
+    if (!aktivniUzivatel) {
+      return { predmety: [], aktivniUzivatel: null };
+    }
+
+    // 2. Načteme POUZE předměty, které patří tomuto uživateli (opravený JS komentář)
+    const predmety = await sql(`SELECT * FROM pzop_event WHERE user_id = ${aktivniUzivatel.id} ORDER BY id DESC`);
+    
+    return { predmety: predmety || [], aktivniUzivatel };
+  } catch (e) {
+    console.error("Chyba při načítání home:", e);
+    return { predmety: [], aktivniUzivatel: null };
+  }
 }
 
 export default function Home() {
-  const { predmety, udalosti } = useLoaderData();
-  const [filtr, setFiltr] = useState("Vše");
-  const [limit, setLimit] = useState(4); // Limit pro tlačítko "Více"
-
-  // Logika filtrování
-  const filtrovaneUdalosti = filtr === "Vše" 
-    ? udalosti 
-    : udalosti.filter(e => e.subject_shortcut === filtr);
-
-  const zobrazeneUdalosti = filtrovaneUdalosti.slice(0, limit);
+  const { predmety, aktivniUzivatel } = useLoaderData();
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      {/* Sémantický header - responzivně na střed max-w-6xl */}
-      <header className="bg-white border-b sticky top-0 z-20">
-        <div className="max-w-6xl mx-auto px-4 h-16 flex justify-between items-center">
-          <User />
-          <Link to="/events/new" className="bg-blue-600 text-white w-10 h-10 rounded-full flex items-center justify-center text-2xl shadow-lg hover:bg-blue-700 transition">
-            +
-          </Link>
-        </div>
-      </header>
+    <main className="min-h-screen bg-gray-50 p-4 sm:p-6 md:p-8 font-sans">
+      <div className="max-w-4xl mx-auto bg-white rounded-3xl shadow-xl border border-gray-100 p-6 flex flex-col gap-6">
+        
+        {/* Horní lišta s profilem */}
+        <header className="flex justify-between items-center border-b border-gray-100 pb-4">
+          <div>
+            <h1 className="text-xl font-bold text-gray-900">Moje Předměty</h1>
+            <p className="text-xs text-gray-500">Přehled tvých osobních uložených položek</p>
+          </div>
+          <div className="flex items-center gap-4">
+            <User />
+            <Link to="/users" className="text-xs font-semibold text-gray-500 hover:text-blue-600 bg-gray-50 p-2 rounded-xl transition-colors">
+              Správa uživatelů
+            </Link>
+          </div>
+        </header>
 
-      <main className="max-w-6xl mx-auto px-4 pt-6">
-        {/* Navigace pro výběr předmětu */}
-        <nav className="flex gap-2 overflow-x-auto pb-6">
-          <button 
-            onClick={() => setFiltr("Vše")}
-            className={`px-6 py-1.5 rounded-full border text-sm font-bold transition-colors ${filtr === "Vše" ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}
-          >Vše</button>
-          {predmety.map(p => (
-            <button 
-              key={p.shortcut}
-              onClick={() => setFiltr(p.shortcut)}
-              className={`px-6 py-1.5 rounded-full border text-sm font-bold transition-colors ${filtr === p.shortcut ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-500 border-gray-200'}`}
-            >
-              {p.shortcut}
-            </button>
-          ))}
-        </nav>
+        {/* Seznam předmětů */}
+        <section className="flex flex-col gap-3">
+          <div className="flex justify-between items-center mb-2">
+            <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider">Aktuální seznam</h2>
+            <Link to="/events/new" className="text-xs bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-2 rounded-xl shadow-md transition-all flex items-center gap-1">
+              <span className="material-icons text-sm">add</span> Nový předmět
+            </Link>
+          </div>
 
-        {/* RESPONZIVITA: grid-cols-1 (mobil), md:grid-cols-2 (tablet), lg:grid-cols-3 (PC) */}
-        <section className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {zobrazeneUdalosti.map(u => (
-            <Event key={u.id} event={u} />
-          ))}
+          <div className="space-y-3">
+            {predmety.map(p => (
+              <Link 
+                to={`/events/${p.id}`} 
+                key={p.id} 
+                className="flex items-center justify-between p-4 border border-gray-200/70 rounded-2xl bg-white hover:border-blue-200 hover:shadow-sm transition-all group"
+              >
+                <div>
+                  <span className="font-semibold text-gray-800 text-sm block group-hover:text-blue-600 transition-colors">
+                    {p.title || p.name}
+                  </span>
+                  <p className="text-xs text-gray-400 truncate max-w-md">{p.description || "Bez popisu"}</p>
+                </div>
+                <span className="material-icons text-gray-300 group-hover:text-blue-500 transition-colors">chevron_right</span>
+              </Link>
+            ))}
+
+            {predmety.length === 0 && (
+              <div className="text-center py-12 border border-dashed border-gray-200 rounded-2xl bg-gray-50/50">
+                <span className="material-icons text-gray-300 text-5xl mb-2">folder_open</span>
+                <p className="text-sm text-gray-400 italic">Zatím tu nemáš žádné předměty. Přidej první!</p>
+              </div>
+            )}
+          </div>
         </section>
 
-        {/* Tlačítko Více - zobrazí se jen když je co víc ukazovat */}
-        {filtrovaneUdalosti.length > limit && (
-          <div className="flex justify-center mt-8">
-            <button 
-              onClick={() => setLimit(100)} 
-              className="text-blue-600 font-bold py-2 px-6 hover:bg-blue-50 rounded-lg transition"
-            >
-              Zobrazit více událostí
-            </button>
-          </div>
-        )}
-      </main>
-    </div>
+      </div>
+    </main>
   );
 }

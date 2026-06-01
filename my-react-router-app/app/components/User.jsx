@@ -1,16 +1,29 @@
-/**
- * Komponenta uživatele zobrazující avatar a jméno.
- * @returns {JSX.Element}
- */
+import { Link, useRouteLoaderData } from "react-router";
+
 export function User() {
+  const rootData = useRouteLoaderData("root");
+  const uzivatel = rootData?.activeUser || {
+    name: "Eliška Nováková",
+    avatar_url: ""
+  };
+
   return (
-    <div className="flex items-center gap-2">
-      <img 
-        src="https://cdn-icons-png.flaticon.com/512/6596/6596121.png" 
-        alt="Avatar" 
-        className="w-10 h-10 rounded-full border border-gray-200"
-      />
-      <span className="font-bold text-gray-700">Eliška Nováková</span>
-    </div>
+    <Link 
+      to="/profile" 
+      className="flex items-center gap-2 cursor-pointer hover:opacity-80 transition-opacity select-none"
+    >
+      {uzivatel.avatar_url ? (
+        <img 
+          src={uzivatel.avatar_url} 
+          alt="" 
+          className="w-8 h-8 rounded-full object-cover bg-gray-100"
+        />
+      ) : (
+        <span className="material-icons text-gray-800 text-3xl">account_circle</span>
+      )}
+      <span className="font-semibold text-gray-800 text-sm">
+        {uzivatel.name}
+      </span>
+    </Link>
   );
 }

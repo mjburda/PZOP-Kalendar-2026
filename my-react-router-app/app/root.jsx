@@ -6,7 +6,7 @@ import {
   Scripts,
   ScrollRestoration,
 } from "react-router";
-
+import { sql } from "./sql";
 import "./app.css";
 
 export const links = () => [
@@ -20,11 +20,26 @@ export const links = () => [
     rel: "stylesheet",
     href: "https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap",
   },
+  {
+    rel: "stylesheet",
+    href: "https://fonts.googleapis.com/icon?family=Material+Icons",
+  },
 ];
+
+export async function loader() {
+  try {
+    const res = await sql("SELECT * FROM pzop_user WHERE is_active = 1 LIMIT 1");
+    const activeUser = res[0] || (await sql("SELECT * FROM pzop_user LIMIT 1"))[0];
+    return { activeUser: activeUser || null };
+  } catch (error) {
+    console.error("Chyba DB:", error);
+    return { activeUser: null };
+  }
+}
 
 export function Layout({ children }) {
   return (
-    <html lang="en">
+    <html lang="cs">
       <head>
         <meta charSet="utf-8" />
         <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -45,30 +60,29 @@ export default function App() {
 }
 
 export function ErrorBoundary({ error }) {
-  let message = "Oops!";
-  let details = "An unexpected error occurred.";
+  let message = "Jejda! Něco se pokazilo.";
+  let details = "Došlo k neočekávané chybě.";
   let stack;
 
   if (isRouteErrorResponse(error)) {
-    message = error.status === 404 ? "404" : "Error";
-    details =
-      error.status === 404
-        ? "The requested page could not be found."
-        : error.statusText || details;
+    message = error.status === 404 ? "404" : "Chyba";
+    details = error.status === 404 ? "Požadovaná stránka nebyla nalezena." : error.statusText || details;
   } else if (import.meta.env.DEV && error && error instanceof Error) {
     details = error.message;
     stack = error.stack;
   }
 
   return (
-    <main className="pt-16 p-4 container mx-auto">
-      <h1>{message}</h1>
-      <p>{details}</p>
-      {stack && (
-        <pre className="w-full p-4 overflow-x-auto">
-          <code>{stack}</code>
-        </pre>
-      )}
+    <main className="min-h-screen bg-gray-50 flex flex-col items-center justify-center p-4">
+      <div className="bg-white p-8 rounded-3xl shadow-xl max-w-lg w-full text-center">
+        <h1 className="text-6xl font-bold text-blue-600 mb-4">{message}</h1>
+        <p className="text-gray-600 font-medium mb-6">{details}</p>
+        {stack && (
+          <pre className="w-full p-4 bg-gray-100 rounded-xl overflow-x-auto text-left text-xs text-red-500">
+            <code>{stack}</code>
+          </pre>
+        )}
+      </div>
     </main>
   );
 }
